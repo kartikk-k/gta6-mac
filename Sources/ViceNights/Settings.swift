@@ -35,7 +35,7 @@ final class Settings {
     func set(_ f: Flag, _ value: Bool) { d.set(value, forKey: f.rawValue) }
 
     var wallpaperSet: WallpaperSet {
-        get { WallpaperSet(rawValue: d.string(forKey: "wallpaperSet") ?? "") ?? .viceNights }
+        get { WallpaperSet(rawValue: d.string(forKey: "wallpaperSet") ?? "") ?? .downtown }
         set { d.set(newValue.rawValue, forKey: "wallpaperSet") }
     }
     var traffic: Traffic {
@@ -44,7 +44,7 @@ final class Settings {
     }
     /// 0 = never rotate.
     var rotateMinutes: Int {
-        get { d.object(forKey: "rotateMinutes") as? Int ?? 10 }
+        get { d.object(forKey: "rotateMinutes") as? Int ?? 0 }
         set { d.set(newValue, forKey: "rotateMinutes") }
     }
     var askedForAccessibility: Bool {

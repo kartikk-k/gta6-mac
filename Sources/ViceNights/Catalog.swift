@@ -13,10 +13,11 @@ struct Shot: Hashable {
 }
 
 enum WallpaperSet: String, CaseIterable {
-    case viceNights, nightlife, sunsetArt, liveSkyline, mix
+    case downtown, viceNights, nightlife, sunsetArt, liveSkyline, mix
 
     var title: String {
         switch self {
+        case .downtown: "Downtown Vice City (default)"
         case .viceNights: "Vice City Nights"
         case .nightlife: "Nightlife"
         case .sunsetArt: "Sunset Artwork"
@@ -27,6 +28,9 @@ enum WallpaperSet: String, CaseIterable {
 }
 
 enum Catalog {
+    /// The default: the downtown skyline over the river at night, on its own.
+    static let downtown: [Shot] = [Shot(file: "Vice_City_27.0d2e~w_r93hmh")]
+
     /// Night / dusk city shots: skylines, neon, the harbour.
     static let viceNights: [Shot] = [
         "Vice_City_27.0d2e~w_r93hmh",
@@ -68,6 +72,7 @@ enum Catalog {
 
     static func shots(for set: WallpaperSet) -> [Shot] {
         switch set {
+        case .downtown: downtown
         case .viceNights: viceNights
         case .nightlife: nightlife
         case .sunsetArt: sunsetArt

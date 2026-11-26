@@ -190,6 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let i = item(set.title, #selector(chooseSet(_:)), checked: s.wallpaperSet == set)
             i.representedObject = set.rawValue
             wpMenu.addItem(i)
+            if set == .downtown { wpMenu.addItem(.separator()) }
         }
         wpMenu.addItem(.separator())
         wpMenu.addItem(item("Next Wallpaper", #selector(nextWallpaper), key: "n", enabled: on))
