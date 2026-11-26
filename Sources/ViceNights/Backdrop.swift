@@ -207,6 +207,9 @@ final class WallpaperDirector {
         }
     }
 
+    /// Re-decode the current wallpaper (after a setting that's baked into the image changes).
+    func reload() { show(advance: false) }
+
     func next() {
         show(advance: true)
         scheduleTimer()
@@ -232,6 +235,7 @@ final class WallpaperDirector {
             views.filter { !$0.hasContent }.forEach { $0.showSkyline() }
         }
         let hold = Double(Settings.shared.rotateMinutes) * 60
+        let fringe = Settings.shared.isOn(.lensFringe)
         let targets = views.map { v -> (BackdropView, CGSize) in
             let sf = v.window?.backingScaleFactor ?? 2
             return (v, CGSize(width: v.bounds.width * sf, height: v.bounds.height * sf))
@@ -248,7 +252,7 @@ final class WallpaperDirector {
                 for (view, pixels) in targets {
                     let overscan = BackdropView.overscan
                     let image = await Task.detached(priority: .userInitiated) {
-                        ImageStore.decodeForDisplay(url, pixelSize: pixels, overscan: overscan, viceTint: false)
+                        ImageStore.decodeForDisplay(url, pixelSize: pixels, overscan: overscan, viceTint: false, fringe: fringe)
                     }.value
                     guard self.token == myToken else { return }
                     guard let image else { continue }

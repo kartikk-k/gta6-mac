@@ -7,8 +7,7 @@ extension NSWindow.Level {
     static let skyBehindWindows = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
     /// Above app windows but below the Dock and the menu bar, so aircraft pass behind both.
     static let skyOverWindows = NSWindow.Level.floating
-    /// Dock decoration: on the desktop (under app windows and the Dock's glass), so palms
-    /// only peek out where the desktop is visible and never cover what you're working on.
+    /// Corner palms behind windows: on the desktop, under app windows and the Dock's glass.
     static let dockDecor = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 2)
     /// The Dock's neon outline sits just above the Dock so its glass doesn't swallow the line.
     /// It only covers the Dock's own strip, where app windows never go.

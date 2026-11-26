@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import ImageIO
 
 /// Downloads official images from rockstargames.com on demand and keeps them in
@@ -44,11 +45,38 @@ final class ImageStore {
         return result
     }
 
+    private nonisolated static let ciContext = CIContext(options: [.cacheIntermediates: false])
+
+    /// Lens colour fringing, baked in once per wallpaper: red is scaled very slightly outward from
+    /// the centre and blue inward, so there's no split in the middle and a few pixels of red/blue
+    /// fringe on bright edges toward the sides, like footage shot through a real lens.
+    nonisolated static func lensFringe(_ image: CGImage, strength: CGFloat = 0.0024) -> CGImage? {
+        let ci = CIImage(cgImage: image)
+        let ext = ci.extent
+        let c = CGPoint(x: ext.midX, y: ext.midY)
+        func channel(_ v: (CGFloat, CGFloat, CGFloat), scale k: CGFloat) -> CIImage {
+            let only = ci.applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: v.0, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: v.1, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: v.2, w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            ])
+            let t = CGAffineTransform(translationX: c.x, y: c.y).scaledBy(x: k, y: k).translatedBy(x: -c.x, y: -c.y)
+            return only.clampedToExtent().transformed(by: t).cropped(to: ext)
+        }
+        let red = channel((1, 0, 0), scale: 1 + strength)
+        let green = channel((0, 1, 0), scale: 1)
+        let blue = channel((0, 0, 1), scale: 1 - strength)
+        let rg = red.applyingFilter("CIAdditionCompositing", parameters: [kCIInputBackgroundImageKey: green])
+        let rgb = blue.applyingFilter("CIAdditionCompositing", parameters: [kCIInputBackgroundImageKey: rg])
+        return ciContext.createCGImage(rgb, from: ext)
+    }
+
     /// Decode an image for a display of `pixelSize` (physical pixels), already cropped to the
     /// display's aspect ratio and `overscan` larger than it, so the drift can end at exactly one
     /// image pixel per screen pixel. Never upscales beyond the source, and never decodes more pixels
     /// than the display needs, which keeps memory to roughly one screen's worth per image.
-    nonisolated static func decodeForDisplay(_ url: URL, pixelSize: CGSize, overscan: CGFloat, viceTint: Bool) -> CGImage? {
+    nonisolated static func decodeForDisplay(_ url: URL, pixelSize: CGSize, overscan: CGFloat, viceTint: Bool, fringe: Bool = false) -> CGImage? {
         autoreleasepool {
             guard let src = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
                   let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
@@ -75,7 +103,8 @@ final class ImageStore {
                 crop.size.height = (sw / aspect).rounded()
                 crop.origin.y = ((sh - crop.height) / 2).rounded()
             }
-            let cropped = scaled.cropping(to: crop) ?? scaled
+            var cropped = scaled.cropping(to: crop) ?? scaled
+            if fringe, let f = lensFringe(cropped) { cropped = f }
             guard viceTint else { return cropped }
             // Bake the violet grade in once (soft light), rather than running a full-screen
             // blend filter on the GPU every frame.

@@ -71,18 +71,13 @@ enum DockLocator {
     }
 }
 
-/// Neon outline and palm trees drawn just beneath the Dock.
+/// Neon outline drawn around the Dock.
 @MainActor
 final class DockDecor {
-    private var window: OverlayWindow?        // palms, behind windows
     private var neonWindow: OverlayWindow?    // outline, just above the Dock
     private var timer: Timer?
     private var builtKey = ""
     private(set) var dockFrame: CGRect?
-
-    private static let padX: CGFloat = 150
-    private static let padBottom: CGFloat = 16
-    private static let padTop: CGFloat = 130
 
     func start() {
         refresh()
@@ -94,8 +89,6 @@ final class DockDecor {
     func stop() {
         timer?.invalidate()
         timer = nil
-        window?.orderOut(nil)
-        window = nil
         neonWindow?.orderOut(nil)
         neonWindow = nil
         builtKey = ""
@@ -106,79 +99,39 @@ final class DockDecor {
         let s = Settings.shared
         let rect = DockLocator.frame()
         dockFrame = rect
-        let wantNeon = s.isOn(.dockNeon), wantPalms = s.isOn(.dockPalms)
-        guard let rect, wantNeon || wantPalms else {
-            window?.orderOut(nil)
-            window = nil
+        let wantNeon = s.isOn(.dockNeon)
+        guard let rect, wantNeon else {
             neonWindow?.orderOut(nil)
             neonWindow = nil
             builtKey = ""
             return
         }
         let r = rect.integral
-        let key = "\(r)|\(wantNeon)|\(wantPalms)"
+        let key = "\(r)"
         guard force || key != builtKey else { return }
         builtKey = key
 
-        let frame = CGRect(x: r.minX - Self.padX, y: r.minY - Self.padBottom,
-                           width: r.width + Self.padX * 2, height: r.height + Self.padBottom + Self.padTop)
-        let local = CGRect(x: Self.padX, y: Self.padBottom, width: r.width, height: r.height)
         let scale = NSScreen.screens.first(where: { $0.frame.intersects(r) })?.backingScaleFactor ?? 2
-        if wantPalms {
-            if window == nil { window = OverlayWindow(frame: frame, level: .dockDecor) }
-            window?.setFrame(frame, display: false)
-            window?.contentView = DockDecorView(size: frame.size, dock: local, neon: false, palms: true, scale: scale)
-            window?.orderFrontRegardless()
-        } else {
-            window?.orderOut(nil)
-            window = nil
-        }
         // The neon window hugs the Dock tightly (just room for the glow), so it never covers app windows.
         let glowPad: CGFloat = 18
         let neonFrame = r.insetBy(dx: -glowPad, dy: -glowPad)
         let neonLocal = CGRect(x: glowPad, y: glowPad, width: r.width, height: r.height)
-        if wantNeon {
-            if neonWindow == nil { neonWindow = OverlayWindow(frame: neonFrame, level: .aboveDock) }
-            neonWindow?.setFrame(neonFrame, display: false)
-            neonWindow?.contentView = DockDecorView(size: neonFrame.size, dock: neonLocal, neon: true, palms: false, scale: scale)
-            neonWindow?.orderFrontRegardless()
-        } else {
-            neonWindow?.orderOut(nil)
-            neonWindow = nil
-        }
+        if neonWindow == nil { neonWindow = OverlayWindow(frame: neonFrame, level: .aboveDock) }
+        neonWindow?.setFrame(neonFrame, display: false)
+        neonWindow?.contentView = DockDecorView(size: neonFrame.size, dock: neonLocal, scale: scale)
+        neonWindow?.orderFrontRegardless()
     }
 }
 
 final class DockDecorView: LayerHostView {
     private var flickerTimer: Timer?
 
-    init(size: CGSize, dock: CGRect, neon: Bool, palms: Bool, scale: CGFloat) {
+    init(size: CGSize, dock: CGRect, scale: CGFloat) {
         super.init(size: size)
-        if palms { addPalms(dock: dock, scale: scale) }
-        if neon { addNeon(dock: dock, scale: scale) }
+        addNeon(dock: dock, scale: scale)
     }
 
     deinit { flickerTimer?.invalidate() }
-
-    private func addPalms(dock: CGRect, scale: CGFloat) {
-        let h = dock.height * 1.95
-        let specs: [(x: CGFloat, h: CGFloat, lean: CGFloat, seed: UInt64)] = [
-            (dock.minX + dock.height * 0.35, h, -0.5, 11),
-            (dock.minX + dock.height * 0.95, h * 0.72, -0.85, 17),
-            (dock.maxX - dock.height * 0.35, h, 0.5, 23),
-            (dock.maxX - dock.height * 0.95, h * 0.72, 0.85, 29),
-        ]
-        for spec in specs {
-            let l = CAShapeLayer()
-            l.path = Shapes.palm(height: spec.h, lean: spec.lean, fronds: 9, seed: spec.seed)
-            l.fillColor = Palette.c(Palette.palmSlate)
-            l.contentsScale = scale
-            l.bounds = .zero
-            l.position = CGPoint(x: spec.x, y: dock.minY + 4)
-            if !Anim.reduceMotion { SkylineScene.sway(l, amount: 0.018) }
-            root.addSublayer(l)
-        }
-    }
 
     private func addNeon(dock: CGRect, scale: CGFloat) {
         // Measured against the visible glass: 1.5pt in from the sides, reaching 4pt lower at the

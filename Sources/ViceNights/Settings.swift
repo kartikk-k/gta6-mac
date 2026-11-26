@@ -3,7 +3,8 @@ import Foundation
 enum Flag: String, CaseIterable {
     case themeOn, viceGrade, clubBeams, drift, edgeGlow, partyOverApps, dreamyLights, dreamyHaze, hazeOverApps, sparks
     case helicopters, searchlights, birds, jets, flyOverWindows
-    case dockNeon, dockPalms
+    case dockNeon, dockPalms, palmsOverWindows
+    case compass, compassOverWindows, minimap, lensFringe
 }
 
 enum Traffic: String, CaseIterable {

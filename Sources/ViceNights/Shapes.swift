@@ -7,7 +7,9 @@ enum Shapes {
 
     /// Slim curved trunk with a crown of long, arching fronds whose leaflets hang down like
     /// feathers (after the silhouettes in the official "Out Now" banner).
-    static func palm(height h: CGFloat, lean: CGFloat, fronds n: Int = 9, seed: UInt64) -> CGPath {
+    /// `airy` gives each frond a few more, slightly slimmer leaflets with a little more space
+    /// between them, for palms drawn large.
+    static func palm(height h: CGFloat, lean: CGFloat, fronds n: Int = 9, seed: UInt64, airy: Bool = false) -> CGPath {
         var rng = RNG(seed)
         let p = CGMutablePath()
         let crown = CGPoint(x: lean * h * 0.3, y: h)
@@ -31,12 +33,14 @@ enum Shapes {
             if up > 0.75 { angle += (cos(angle) >= 0 ? -1 : 1) * 0.35 }
             let sideways = abs(cos(angle))
             let length = h * rng.r(0.58, 0.74) * (0.75 + 0.3 * sideways)
-            addFrond(p, from: crown, angle: angle, length: length, rng: &rng)
+            addFrond(p, from: crown, angle: angle, length: length,
+                     leaflets: airy ? 20 : 17, blade: airy ? 0.36 : 0.42, rng: &rng)
         }
         return p
     }
 
     private static func addFrond(_ p: CGMutablePath, from c: CGPoint, angle: CGFloat, length L: CGFloat,
+                                 leaflets count: Int, blade: CGFloat,
                                  rng: inout RNG) {
         let dx = cos(angle), dy = sin(angle)
         // The rib rises out of the crown, arches, then droops toward the tip.
@@ -60,7 +64,6 @@ enum Shapes {
         // Leaflets: narrow blades spaced along both sides of a thin rib, with gaps between them.
         // The side facing the ground gets long hanging blades, the upper side short ones; all sweep
         // back toward the crown.
-        let count = 17
         let rib = L * 0.011
         var plus: [CGPoint] = [], minus: [CGPoint] = []
         for side in [CGFloat(1), -1] {
@@ -69,7 +72,7 @@ enum Shapes {
                 let t = 0.06 + 0.9 * CGFloat(k) / CGFloat(count - 1)
                 let spacing = 0.9 / CGFloat(count - 1)
                 let envelope = pow(sin(CGFloat.pi * min(1, t * 1.05)), 0.6)
-                for (dt, isTip) in [(-spacing * 0.42, false), (0, true), (spacing * 0.42, false)] {
+                for (dt, isTip) in [(-spacing * blade, false), (0, true), (spacing * blade, false)] {
                     let tt = min(0.985, t + dt)
                     let b = point(tt), tg = tangent(tt)
                     let n = CGPoint(x: -tg.y * side, y: tg.x * side)

@@ -8,11 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var edgeWindows: [OverlayWindow] = []
     private var partyWindows: [OverlayWindow] = []
     private var hazeWindows: [OverlayWindow] = []
+    private var compassWindows: [OverlayWindow] = []
     private let reveal = DesktopReveal()
     private let sparks = SparkDirector()
     private let wallpaper = WallpaperDirector()
     private let traffic = TrafficDirector()
     private let dock = DockDecor()
+    private let palms = CornerPalms()
+    private let minimap = MinimapDirector()
     private var quoteIndex = Int.random(in: 0..<Catalog.quotes.count)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -66,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         wallpaper.views = backdrops
         wallpaper.start()
         dock.start()
+        palms.rebuild()
+        minimap.start()
         traffic.skies = skies
         traffic.start()
         sparks.views = skies
@@ -74,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildEdgeGlow()
         buildPartyOverlay()
         buildHaze()
+        buildCompass()
     }
 
     /// The dreamy haze: over apps by default, or just above the wallpaper.
@@ -105,6 +111,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// The game-style compass strip, centred just under the menu bar.
+    private func buildCompass() {
+        compassWindows.forEach { $0.orderOut(nil) }
+        compassWindows = []
+        let s = Settings.shared
+        guard s.isOn(.themeOn), s.isOn(.compass) else { return }
+        let level: NSWindow.Level = s.isOn(.compassOverWindows) ? .skyOverWindows : .skyBehindWindows
+        for screen in NSScreen.screens {
+            let size = CompassView.size
+            let menuBar = max(24, screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top)
+            let frame = CGRect(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - menuBar - size.height - 2,
+                               width: size.width, height: size.height)
+            let w = OverlayWindow(frame: frame, level: level)
+            w.contentView = CompassView(scale: screen.backingScaleFactor)
+            w.orderFrontRegardless()
+            compassWindows.append(w)
+        }
+    }
+
     private func buildEdgeGlow() {
         edgeWindows.forEach { $0.orderOut(nil) }
         edgeWindows = []
@@ -122,13 +147,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         traffic.stop()
         sparks.stop()
         dock.stop()
+        palms.stop()
+        minimap.stop()
         reveal.stop()
-        (backdropWindows + skyWindows + edgeWindows + partyWindows + hazeWindows).forEach { $0.orderOut(nil) }
+        (backdropWindows + skyWindows + edgeWindows + partyWindows + hazeWindows + compassWindows).forEach { $0.orderOut(nil) }
         backdropWindows = []
         skyWindows = []
         edgeWindows = []
         partyWindows = []
         hazeWindows = []
+        compassWindows = []
     }
 
     @objc private func screensChanged() {
@@ -177,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         wpMenu.addItem(.separator())
         wpMenu.addItem(flagItem("Slow Drift", .drift))
         wpMenu.addItem(flagItem("Vice Colour Grade", .viceGrade))
+        wpMenu.addItem(flagItem("Lens Colour Fringing", .lensFringe))
 
         let wpItem = NSMenuItem(title: "Wallpaper", action: nil, keyEquivalent: "")
         wpItem.submenu = wpMenu
@@ -209,7 +238,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Dock
         let dockMenu = NSMenu()
         dockMenu.addItem(flagItem("Neon Outline", .dockNeon))
-        dockMenu.addItem(flagItem("Palm Trees", .dockPalms))
         if !DockLocator.hasAccessibility {
             dockMenu.addItem(.separator())
             dockMenu.addItem(item("Track Dock Precisely (Accessibility)…", #selector(askAccessibility)))
@@ -219,6 +247,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(dockItem)
 
         // Screen
+        menu.addItem(flagItem("Corner Palm Trees", .dockPalms))
+        menu.addItem(flagItem("Palms Over Windows", .palmsOverWindows))
         menu.addItem(flagItem("Dreamy Lights (flares on the wallpaper)", .dreamyLights))
         menu.addItem(flagItem("Dreamy Haze", .dreamyHaze))
         menu.addItem(flagItem("Dreamy Haze Over Apps", .hazeOverApps))
@@ -226,6 +256,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(flagItem("Party Lights (beams & lasers)", .clubBeams))
         menu.addItem(flagItem("Party Lights Over Apps", .partyOverApps))
         menu.addItem(flagItem("Neon Screen Border", .edgeGlow))
+        menu.addItem(flagItem("Minimap (bottom-left, behind windows)", .minimap))
+        menu.addItem(flagItem("Compass (sun & Vice City markers)", .compass))
+        menu.addItem(flagItem("Compass Over Windows", .compassOverWindows))
+        if on && s.isOn(.compass) {
+            let info = NSMenuItem(title: Bearings.summary(), action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            menu.addItem(info)
+        }
         menu.addItem(.separator())
 
         // Music
@@ -298,10 +336,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .flyOverWindows:
             let level: NSWindow.Level = s.isOn(.flyOverWindows) ? .skyOverWindows : .skyBehindWindows
             skyWindows.forEach { $0.level = level }
-        case .dockNeon, .dockPalms:
+        case .dockNeon:
             dock.refresh(force: true)
+        case .dockPalms, .palmsOverWindows:
+            palms.rebuild()
         case .edgeGlow:
             buildEdgeGlow()
+        case .minimap:
+            minimap.start()
+        case .lensFringe:
+            wallpaper.reload()
+        case .compass, .compassOverWindows:
+            buildCompass()
         default:
             break   // sky flags are read each time something spawns
         }
