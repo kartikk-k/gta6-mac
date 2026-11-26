@@ -1,0 +1,81 @@
+import AppKit
+import ImageIO
+
+/// Downloads official images from rockstargames.com on demand and keeps them in
+/// ~/Library/Application Support/ViceNights/official. Nothing is bundled with the app.
+@MainActor
+final class ImageStore {
+    static let shared = ImageStore()
+
+    let directory: URL
+    private var inFlight: [String: Task<URL?, Never>] = [:]
+
+    private init() {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        directory = base.appendingPathComponent("ViceNights/official", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    func localURL(_ shot: Shot) -> URL { directory.appendingPathComponent(shot.cacheFileName) }
+
+    func isCached(_ shot: Shot) -> Bool { FileManager.default.fileExists(atPath: localURL(shot).path) }
+
+    func ensure(_ shot: Shot) async -> URL? {
+        let dest = localURL(shot)
+        if FileManager.default.fileExists(atPath: dest.path) { return dest }
+        if let task = inFlight[shot.name] { return await task.value }
+        let task = Task<URL?, Never> {
+            var request = URLRequest(url: shot.remoteURL)
+            request.timeoutInterval = 90
+            do {
+                let (tmp, response) = try await URLSession.shared.download(for: request)
+                guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: tmp, to: dest)
+                return dest
+            } catch {
+                NSLog("ViceNights: download failed for \(shot.name): \(error.localizedDescription)")
+                return nil
+            }
+        }
+        inFlight[shot.name] = task
+        let result = await task.value
+        inFlight[shot.name] = nil
+        return result
+    }
+
+    /// Decode an image for a display of `pixelSize` (physical pixels), already cropped to the
+    /// display's aspect ratio and `overscan` larger than it, so the drift can end at exactly one
+    /// image pixel per screen pixel. Never upscales beyond the source, and never decodes more pixels
+    /// than the display needs, which keeps memory to roughly one screen's worth per image.
+    nonisolated static func decodeForDisplay(_ url: URL, pixelSize: CGSize, overscan: CGFloat) -> CGImage? {
+        autoreleasepool {
+            guard let src = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                  let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+                  let iw = props[kCGImagePropertyPixelWidth] as? CGFloat,
+                  let ih = props[kCGImagePropertyPixelHeight] as? CGFloat else { return nil }
+            let target = CGSize(width: pixelSize.width * overscan, height: pixelSize.height * overscan)
+            let fill = min(1, max(target.width / iw, target.height / ih))
+            let maxPixel = Int((max(iw, ih) * fill).rounded(.up))
+            let opts: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            guard let scaled = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+            // Centre-crop to the display's aspect ratio.
+            let sw = CGFloat(scaled.width), sh = CGFloat(scaled.height)
+            let aspect = pixelSize.width / pixelSize.height
+            var crop = CGRect(x: 0, y: 0, width: sw, height: sh)
+            if sw / sh > aspect {
+                crop.size.width = (sh * aspect).rounded()
+                crop.origin.x = ((sw - crop.width) / 2).rounded()
+            } else {
+                crop.size.height = (sw / aspect).rounded()
+                crop.origin.y = ((sh - crop.height) / 2).rounded()
+            }
+            return scaled.cropping(to: crop) ?? scaled
+        }
+    }
+}
