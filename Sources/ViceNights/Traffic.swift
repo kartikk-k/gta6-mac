@@ -52,7 +52,7 @@ final class TrafficDirector {
         if s.isOn(.helicopters) {
             // Mostly the searchlight helicopter; plain ones are small and far away.
             if s.isOn(.searchlights) { options.append((.searchHeli, 30)) }
-            options += [(.farHeli, 14), (.heli, 6)]
+            options += [(.heli, 10)]
         }
         if s.isOn(.jets) { options.append((.jet, 20)) }
         if s.isOn(.birds) { options.append((.birds, 8)) }
@@ -76,18 +76,15 @@ final class TrafficDirector {
         let fromLeft = Bool.random()
         switch event {
         case .farHeli:
-            let size = CGFloat.random(in: 14...22)
-            let heli = Sprites.helicopter(size: size, facingRight: fromLeft, scale: sky.scale)
-            heli.opacity = 0.8
-            fly(heli, in: sky, fromLeft: fromLeft, y: H * .random(in: 0.55...0.9), margin: size, duration: .random(in: 38...60))
+            spawn(.heli)   // tiny far-off helicopters were dropped; they read as specks
         case .heli:
-            let size = CGFloat.random(in: 26...36)
+            let size = CGFloat.random(in: 36...46)
             let heli = Sprites.helicopter(size: size, facingRight: fromLeft, scale: sky.scale)
             fly(heli, in: sky, fromLeft: fromLeft, y: H * .random(in: 0.5...0.85), margin: size, duration: .random(in: 26...38))
         case .closeHeli:
             spawn(.heli)
         case .searchHeli:
-            let size = CGFloat.random(in: 30...40)
+            let size = CGFloat.random(in: 38...48)
             let heli = Sprites.helicopter(size: size, facingRight: fromLeft, searchlight: H * 0.4, scale: sky.scale)
             fly(heli, in: sky, fromLeft: fromLeft, y: H * .random(in: 0.66...0.88), margin: H * 0.25, duration: .random(in: 38...55))
         case .jet:

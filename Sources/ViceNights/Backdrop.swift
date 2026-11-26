@@ -12,6 +12,7 @@ final class BackdropView: LayerHostView {
     private let gradeTop = CAGradientLayer()
     private let gradeBottom = CAGradientLayer()
     private let beams = CALayer()
+    private let dreamy = DreamyLightsLayer()
     private(set) var showingSkyline = false
 
     init(size: CGSize, scale: CGFloat) {
@@ -52,6 +53,9 @@ final class BackdropView: LayerHostView {
         gradeBottom.colors = [Palette.c(Palette.siteNavyBottom, 0.65), Palette.c(Palette.siteNavyBottom, 0)]
         root.addSublayer(gradeBottom)
 
+        dreamy.setup(size: bounds.size)
+        root.addSublayer(dreamy)
+
         beams.frame = bounds
         root.addSublayer(beams)
         updateEffects()
@@ -84,6 +88,7 @@ final class BackdropView: LayerHostView {
         }
         photoLayer = l
         if drift { kenBurns(l, duration: seconds > 0 ? seconds + 5 : 600) }
+        placeFlares(on: image)
         if let s = skyline {
             // Drop the generated scene entirely (its bitmaps and live animations) once hidden.
             skyline = nil
@@ -106,10 +111,32 @@ final class BackdropView: LayerHostView {
             photoLayer = nil
         }
         showingSkyline = true
+        dreamy.showFlares(at: [(CGPoint(x: bounds.width * 0.5, y: bounds.height * 0.62), 0.8),
+                               (CGPoint(x: bounds.width * 0.22, y: bounds.height * 0.42), 0.5),
+                               (CGPoint(x: bounds.width * 0.78, y: bounds.height * 0.83), 0.6)])
         updateEffects()
     }
 
     var hasContent: Bool { photoLayer != nil || showingSkyline }
+
+    /// Put starburst flares on the photo's brightest point lights (street lamps, signs).
+    private func placeFlares(on image: CGImage) {
+        let size = bounds.size, o = Self.overscan
+        Task { @MainActor in
+            let found = await Task.detached(priority: .utility) { LightFinder.find(in: image, maxCount: 40) }.value
+            // The photo is centred and `overscan` larger than the screen.
+            let points = found.compactMap { (p, strength) -> (CGPoint, CGFloat)? in
+                let v = CGPoint(x: size.width / 2 + (p.x - 0.5) * size.width * o,
+                                y: size.height / 2 + (p.y - 0.5) * size.height * o)
+                guard v.x > 0, v.x < size.width, v.y > 0, v.y < size.height else { return nil }
+                // Keep big flares out of the middle, where your windows are.
+                let inMiddle = v.x > size.width * 0.18 && v.x < size.width * 0.82 && v.y > size.height * 0.15 && v.y < size.height * 0.85
+                guard !inMiddle else { return nil }
+                return (v, strength)
+            }
+            self.dreamy.showFlares(at: points)
+        }
+    }
 
     /// Slow push-in from "whole image" to exactly one image pixel per screen pixel.
     private func kenBurns(_ l: CALayer, duration: TimeInterval) {
@@ -140,6 +167,7 @@ final class BackdropView: LayerHostView {
         gradeBottom.isHidden = !grade
         // When the lights are set to play over apps they live in their own window instead.
         let wantBeams = s.isOn(.clubBeams) && !s.isOn(.partyOverApps) && !Anim.reduceMotion
+        dreamy.isHidden = !s.isOn(.dreamyLights)
         if wantBeams && (beams.sublayers ?? []).isEmpty { PartyLights.build(in: beams, size: bounds.size, additive: true) }
         beams.isHidden = !wantBeams
         CATransaction.commit()
@@ -220,7 +248,7 @@ final class WallpaperDirector {
                 for (view, pixels) in targets {
                     let overscan = BackdropView.overscan
                     let image = await Task.detached(priority: .userInitiated) {
-                        ImageStore.decodeForDisplay(url, pixelSize: pixels, overscan: overscan)
+                        ImageStore.decodeForDisplay(url, pixelSize: pixels, overscan: overscan, viceTint: false)
                     }.value
                     guard self.token == myToken else { return }
                     guard let image else { continue }

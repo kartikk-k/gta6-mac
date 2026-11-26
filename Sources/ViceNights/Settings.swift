@@ -1,7 +1,7 @@
 import Foundation
 
 enum Flag: String, CaseIterable {
-    case themeOn, viceGrade, clubBeams, drift, edgeGlow, partyOverApps
+    case themeOn, viceGrade, clubBeams, drift, edgeGlow, partyOverApps, dreamyLights, dreamyHaze, hazeOverApps, sparks
     case helicopters, searchlights, birds, jets, flyOverWindows
     case dockNeon, dockPalms
 }
@@ -30,7 +30,7 @@ final class Settings {
     static let shared = Settings()
     private let d = UserDefaults.standard
 
-    func isOn(_ f: Flag) -> Bool { d.object(forKey: f.rawValue) as? Bool ?? (f != .drift && f != .partyOverApps) }
+    func isOn(_ f: Flag) -> Bool { d.object(forKey: f.rawValue) as? Bool ?? (f != .drift && f != .partyOverApps && f != .jets) }
     func set(_ f: Flag, _ value: Bool) { d.set(value, forKey: f.rawValue) }
 
     var wallpaperSet: WallpaperSet {

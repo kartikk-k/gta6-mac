@@ -15,16 +15,14 @@ enum PartyLights {
         for (i, color) in beamColors.enumerated() {
             let length = H * 1.3
             let width = length * 0.13
-            let beam = CAGradientLayer()
+            // The wedge-shaped beam is a pre-rendered bitmap: rotating it is just moving a texture.
+            let beam = CALayer()
             beam.bounds = CGRect(x: 0, y: 0, width: width, height: length)
             beam.anchorPoint = CGPoint(x: 0.5, y: 0)
             beam.position = CGPoint(x: W * (0.08 + 0.168 * CGFloat(i)), y: -H * 0.03)
-            beam.colors = [Palette.c(color, 0.38), Palette.c(color, 0.14), Palette.c(color, 0)]
-            beam.locations = [0, 0.5, 1]
-            beam.startPoint = CGPoint(x: 0.5, y: 0)
-            beam.endPoint = CGPoint(x: 0.5, y: 1)
+            beam.contents = beamImage(color)
+            beam.contentsGravity = .resize
             beam.compositingFilter = screenBlend
-            beam.mask = wedge(width: width, length: length, base: 8)
             let swing = CGFloat.random(in: 0.25...0.4)
             let start: CGFloat = (i % 2 == 0 ? -1 : 1) * swing
             beam.transform = CATransform3DMakeRotation(start, 0, 0, 1)
@@ -35,7 +33,7 @@ enum PartyLights {
             sweep.autoreverses = true
             sweep.repeatCount = .infinity
             sweep.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            beam.add(Anim.throttle(Anim.randomPhase(sweep), fps: 24), forKey: "sweep")
+            beam.add(Anim.throttle(Anim.randomPhase(sweep), fps: 15), forKey: "sweep")
             container.addSublayer(beam)
         }
 
@@ -74,18 +72,44 @@ enum PartyLights {
                 sweep.autoreverses = true
                 sweep.repeatCount = .infinity
                 sweep.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                laser.add(Anim.throttle(Anim.randomPhase(sweep), fps: 30), forKey: "sweep")
+                laser.add(Anim.throttle(Anim.randomPhase(sweep), fps: 20), forKey: "sweep")
                 // Lasers cut in and out like a light show.
                 let blink = CAKeyframeAnimation(keyPath: "opacity")
                 blink.values = [1, 1, 0, 0, 1]
                 blink.keyTimes = [0, 0.55, 0.57, 0.85, 0.87]
                 blink.duration = .random(in: 5...9)
                 blink.repeatCount = .infinity
-                laser.add(Anim.throttle(Anim.randomPhase(blink), fps: 30), forKey: "blink")
+                laser.add(Anim.throttle(Anim.randomPhase(blink), fps: 20), forKey: "blink")
                 container.addSublayer(laser)
             }
         }
 
+    }
+
+    nonisolated(unsafe) private static var beamCache: [UInt32: CGImage] = [:]
+
+    /// A tapered searchlight beam (narrow at the bottom), bright at the source and fading out.
+    private static func beamImage(_ color: UInt32) -> CGImage? {
+        if let c = beamCache[color] { return c }
+        let w = 96, h = 512
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: CGFloat(w) / 2 - 2, y: 0))
+        p.addLine(to: CGPoint(x: CGFloat(w) / 2 + 2, y: 0))
+        p.addLine(to: CGPoint(x: CGFloat(w), y: CGFloat(h)))
+        p.addLine(to: CGPoint(x: 0, y: CGFloat(h)))
+        p.closeSubpath()
+        ctx.addPath(p)
+        ctx.clip()
+        let g = CGGradient(colorsSpace: space,
+                           colors: [Palette.c(color, 0.42), Palette.c(color, 0.15), Palette.c(color, 0)] as CFArray,
+                           locations: [0, 0.5, 1])!
+        ctx.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: h), options: [])
+        let image = ctx.makeImage()
+        beamCache[color] = image
+        return image
     }
 
     private static func wedge(width: CGFloat, length: CGFloat, base: CGFloat) -> CALayer {

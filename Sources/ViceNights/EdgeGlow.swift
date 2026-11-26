@@ -69,7 +69,7 @@ final class EdgeGlowView: LayerHostView {
             flow.duration = 40
             flow.repeatCount = .infinity
             flow.calculationMode = .linear
-            gradient.add(Anim.throttle(flow, fps: 12), forKey: "flow")
+            gradient.add(Anim.throttle(flow, fps: 8), forKey: "flow")
             scheduleFlicker()
         }
     }

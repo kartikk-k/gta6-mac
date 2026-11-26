@@ -48,7 +48,7 @@ final class ImageStore {
     /// display's aspect ratio and `overscan` larger than it, so the drift can end at exactly one
     /// image pixel per screen pixel. Never upscales beyond the source, and never decodes more pixels
     /// than the display needs, which keeps memory to roughly one screen's worth per image.
-    nonisolated static func decodeForDisplay(_ url: URL, pixelSize: CGSize, overscan: CGFloat) -> CGImage? {
+    nonisolated static func decodeForDisplay(_ url: URL, pixelSize: CGSize, overscan: CGFloat, viceTint: Bool) -> CGImage? {
         autoreleasepool {
             guard let src = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
                   let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
@@ -75,7 +75,19 @@ final class ImageStore {
                 crop.size.height = (sw / aspect).rounded()
                 crop.origin.y = ((sh - crop.height) / 2).rounded()
             }
-            return scaled.cropping(to: crop) ?? scaled
+            let cropped = scaled.cropping(to: crop) ?? scaled
+            guard viceTint else { return cropped }
+            // Bake the violet grade in once (soft light), rather than running a full-screen
+            // blend filter on the GPU every frame.
+            guard let ctx = CGContext(data: nil, width: cropped.width, height: cropped.height, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return cropped }
+            let rect = CGRect(x: 0, y: 0, width: cropped.width, height: cropped.height)
+            ctx.draw(cropped, in: rect)
+            ctx.setBlendMode(.softLight)
+            ctx.setFillColor(Palette.c(Palette.skyViolet, 0.45))
+            ctx.fill(rect)
+            return ctx.makeImage() ?? cropped
         }
     }
 }

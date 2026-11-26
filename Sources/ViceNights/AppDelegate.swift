@@ -7,7 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var skyWindows: [OverlayWindow] = []
     private var edgeWindows: [OverlayWindow] = []
     private var partyWindows: [OverlayWindow] = []
+    private var hazeWindows: [OverlayWindow] = []
     private let reveal = DesktopReveal()
+    private let sparks = SparkDirector()
     private let wallpaper = WallpaperDirector()
     private let traffic = TrafficDirector()
     private let dock = DockDecor()
@@ -66,9 +68,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dock.start()
         traffic.skies = skies
         traffic.start()
+        sparks.views = skies
+        sparks.start()
         reveal.start()
         buildEdgeGlow()
         buildPartyOverlay()
+        buildHaze()
+    }
+
+    /// The dreamy haze: over apps by default, or just above the wallpaper.
+    private func buildHaze() {
+        hazeWindows.forEach { $0.orderOut(nil) }
+        hazeWindows = []
+        let s = Settings.shared
+        guard s.isOn(.themeOn), s.isOn(.dreamyHaze) else { return }
+        let over = s.isOn(.hazeOverApps)
+        for screen in NSScreen.screens {
+            let w = OverlayWindow(frame: screen.frame, level: over ? .skyOverWindows : .skyBehindWindows)
+            w.contentView = DreamyHazeView(size: screen.frame.size, overApps: over)
+            w.orderFrontRegardless()
+            hazeWindows.append(w)
+        }
     }
 
     /// Party lights over every app (only when "Party Lights Over Apps" is on).
@@ -100,13 +120,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func tearDown() {
         wallpaper.stop()
         traffic.stop()
+        sparks.stop()
         dock.stop()
         reveal.stop()
-        (backdropWindows + skyWindows + edgeWindows + partyWindows).forEach { $0.orderOut(nil) }
+        (backdropWindows + skyWindows + edgeWindows + partyWindows + hazeWindows).forEach { $0.orderOut(nil) }
         backdropWindows = []
         skyWindows = []
         edgeWindows = []
         partyWindows = []
+        hazeWindows = []
     }
 
     @objc private func screensChanged() {
@@ -197,6 +219,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(dockItem)
 
         // Screen
+        menu.addItem(flagItem("Dreamy Lights (flares on the wallpaper)", .dreamyLights))
+        menu.addItem(flagItem("Dreamy Haze", .dreamyHaze))
+        menu.addItem(flagItem("Dreamy Haze Over Apps", .hazeOverApps))
+        menu.addItem(flagItem("Random Sparks", .sparks))
         menu.addItem(flagItem("Party Lights (beams & lasers)", .clubBeams))
         menu.addItem(flagItem("Party Lights Over Apps", .partyOverApps))
         menu.addItem(flagItem("Neon Screen Border", .edgeGlow))
@@ -264,7 +290,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let s = Settings.shared
         s.set(flag, !s.isOn(flag))
         switch flag {
-        case .viceGrade, .clubBeams, .partyOverApps:
+        case .dreamyHaze, .hazeOverApps:
+            buildHaze()
+        case .viceGrade, .clubBeams, .partyOverApps, .dreamyLights:
             backdropWindows.compactMap { $0.contentView as? BackdropView }.forEach { $0.updateEffects() }
             buildPartyOverlay()
         case .flyOverWindows:

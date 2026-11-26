@@ -4,13 +4,12 @@ import AppKit
 enum Sprites {
     /// A helicopter in a 100 x 50 design box, scaled so it is `size` points wide.
     /// The returned layer's `transform` holds the scale and facing; animate its `position` only.
-    static func helicopter(size: CGFloat, facingRight: Bool, searchlight: CGFloat? = nil, scale: CGFloat) -> CALayer {
+    /// `lightsOnly`: a far-off helicopter you only see as its big lights against the night.
+    static func helicopter(size: CGFloat, facingRight: Bool, searchlight: CGFloat? = nil, lightsOnly: Bool = false,
+                           scale: CGFloat) -> CALayer {
         let s = size / 100
-        // Each helicopter is outlined in one neon colour, like a sign flying over the city.
-        let neon = [Palette.neonPink, Palette.neonCyan, Palette.neonViolet].randomElement()!
-        // Keep the tube and its glow a constant size on screen, however small the helicopter is.
-        let tube = max(1.4, 1.3 / s)
-        let glowRadius = 4.5 / s
+        // Keep rim lines and lights a constant size on screen, however small the helicopter is.
+        let rim = max(0.9, 0.8 / s)
         let rasterScale = scale * max(1, s)
         let container = CALayer()
         container.bounds = CGRect(x: 0, y: 0, width: 100, height: 50)
@@ -30,49 +29,58 @@ enum Sprites {
 
         let rotorDisc = CAShapeLayer()
         rotorDisc.path = CGPath(ellipseIn: CGRect(x: 18, y: 34.8, width: 98, height: 4.4), transform: nil)
-        rotorDisc.fillColor = Palette.c(neon, 0.14)
+        rotorDisc.fillColor = Palette.c(Palette.lavender, 0.16)
         rotorDisc.contentsScale = rasterScale
         pitch.addSublayer(rotorDisc)
 
-        // The hull (body, skids, cockpit) never changes shape, so it's rasterised once with its
-        // glow baked in; moving it then costs no more than moving a bitmap.
+        // The hull (body, skids, cockpit) never changes shape, so it's rasterised once;
+        // moving it then costs no more than moving a bitmap.
         let hull = CALayer()
         hull.frame = pitch.bounds
         pitch.addSublayer(hull)
 
-        let body = CAShapeLayer()
-        body.path = Shapes.heliBody()
-        body.fillColor = Palette.c(0x120f24)
-        body.strokeColor = Palette.c(neon)
-        body.lineWidth = tube
-        body.lineJoin = .round
-        body.shadowColor = Palette.c(neon)
-        body.shadowRadius = glowRadius
-        body.shadowOpacity = 1
-        body.shadowOffset = .zero
+        // Moonlit body: lighter slate on top, near-black underneath, so the shape reads
+        // against both the night sky and dark app windows.
+        let bodyPath = Shapes.heliBody()
+        let bodyMask = CAShapeLayer()
+        bodyMask.frame = hull.bounds
+        bodyMask.path = bodyPath
+        let body = CAGradientLayer()
+        body.frame = hull.bounds
+        body.colors = [Palette.c(0x14152a), Palette.c(0x2c3150), Palette.c(0x646b93)]
+        body.locations = [0, 0.45, 0.8]
+        body.startPoint = CGPoint(x: 0.5, y: 0.2)
+        body.endPoint = CGPoint(x: 0.5, y: 0.75)
+        body.mask = bodyMask
         hull.addSublayer(body)
+
+        // Thin rim of moonlight on the outline.
+        let edge = CAShapeLayer()
+        edge.path = bodyPath
+        edge.fillColor = nil
+        edge.strokeColor = Palette.c(0xc9c4ee, 0.55)
+        edge.lineWidth = rim
+        edge.lineJoin = .round
+        hull.addSublayer(edge)
 
         let skids = CAShapeLayer()
         skids.path = Shapes.heliSkids()
-        skids.strokeColor = Palette.c(neon)
+        skids.strokeColor = Palette.c(0x3d4262)
         skids.fillColor = nil
-        skids.lineWidth = tube
+        skids.lineWidth = max(1.8, 1.2 / s)
         skids.lineCap = .round
-        skids.shadowColor = Palette.c(neon)
-        skids.shadowRadius = glowRadius
-        skids.shadowOpacity = 1
-        skids.shadowOffset = .zero
         hull.addSublayer(skids)
 
         let window = CAShapeLayer()
         window.path = Shapes.heliWindow()
-        window.fillColor = Palette.c(Palette.warmWindow, 0.8)
+        window.fillColor = Palette.c(Palette.warmWindow, 0.85)
         window.shadowColor = Palette.c(Palette.warmWindow)
-        window.shadowRadius = glowRadius * 0.6
-        window.shadowOpacity = 0.8
+        window.shadowRadius = 2.5 / s
+        window.shadowOpacity = 0.9
         window.shadowOffset = .zero
         hull.addSublayer(window)
 
+        if lightsOnly { hull.opacity = 0.18 }
         hull.shouldRasterize = true
         hull.rasterizationScale = scale * max(s, 0.25)
 
@@ -80,8 +88,8 @@ enum Sprites {
         let rotor = CAShapeLayer()
         rotor.frame = CGRect(x: 18, y: 35.5, width: 98, height: 3)
         rotor.path = CGPath(roundedRect: CGRect(x: 0, y: 0.8, width: 98, height: 1.4), cornerWidth: 0.7, cornerHeight: 0.7, transform: nil)
-        rotor.fillColor = Palette.c(neon, 0.9)
-        rotor.strokeColor = Palette.c(neon, 0.5)
+        rotor.fillColor = Palette.c(0x8a8fb3, 0.9)
+        rotor.strokeColor = Palette.c(0xc9c4ee, 0.4)
         rotor.lineWidth = 0.5
         rotor.contentsScale = rasterScale
         let flick = CAKeyframeAnimation(keyPath: "transform.scale.x")
@@ -93,13 +101,13 @@ enum Sprites {
 
         let tailDisc = CAShapeLayer()
         tailDisc.path = CGPath(ellipseIn: CGRect(x: 3, y: 24.5, width: 12, height: 12), transform: nil)
-        tailDisc.fillColor = Palette.c(neon, 0.14)
+        tailDisc.fillColor = Palette.c(Palette.lavender, 0.15)
         tailDisc.contentsScale = rasterScale
         pitch.addSublayer(tailDisc)
         let tailBlade = CAShapeLayer()
         tailBlade.frame = CGRect(x: 3, y: 24.5, width: 12, height: 12)
         tailBlade.path = CGPath(rect: CGRect(x: 5.3, y: 0.5, width: 1.4, height: 11), transform: nil)
-        tailBlade.fillColor = Palette.c(neon, 0.9)
+        tailBlade.fillColor = Palette.c(0x8a8fb3, 0.9)
         tailBlade.contentsScale = rasterScale
         let tailSpin = CABasicAnimation(keyPath: "transform.rotation.z")
         tailSpin.fromValue = 0
@@ -110,10 +118,28 @@ enum Sprites {
         pitch.addSublayer(tailBlade)
 
         // Lights stay at least ~1.4pt on screen so tiny, distant helicopters still read as blinking dots.
-        let lr = max(1.6, 1.4 / s)
-        pitch.addSublayer(light(0xff3b3b, at: CGPoint(x: 6.5, y: 37), radius: lr, blink: beacon()))
-        pitch.addSublayer(light(0xff3b3b, at: CGPoint(x: 67, y: 31.5), radius: lr * 0.9, blink: beacon()))
-        pitch.addSublayer(light(0xffffff, at: CGPoint(x: 68, y: 11), radius: lr, blink: strobe()))
+        let lr = max(2.4, 2.4 / s) * (lightsOnly ? 1.3 : 1)
+        if lightsOnly {
+            rotor.isHidden = true
+            rotorDisc.isHidden = true
+            tailDisc.isHidden = true
+            tailBlade.isHidden = true
+        }
+        // Forward landing light: a bright lamp under the nose with a short soft cone ahead of it.
+        if searchlight == nil {
+            pitch.addSublayer(landingLight(at: CGPoint(x: 88, y: 12), s: s))
+        }
+        // Anti-collision lights with halos, so the helicopter announces itself across the screen.
+        // light() gives its blink a random phase; the halo is added after with the same
+        // (now phased) animation so the pair flashes in sync, then slipped beneath the lamp.
+        let beaconAnim = beacon(), strobeAnim = strobe()
+        let topBeacon = light(0xff3b3b, at: CGPoint(x: 67, y: 32), radius: lr, blink: beaconAnim)
+        pitch.addSublayer(topBeacon)
+        pitch.insertSublayer(halo(0xff3b3b, at: CGPoint(x: 67, y: 32), radius: (lightsOnly ? 22 : 14) / s, blink: beaconAnim), below: topBeacon)
+        pitch.addSublayer(light(0xff3b3b, at: CGPoint(x: 6.5, y: 37), radius: lr * 0.9, blink: beacon()))
+        let bellyStrobe = light(0xffffff, at: CGPoint(x: 68, y: 11), radius: lr, blink: strobeAnim)
+        pitch.addSublayer(bellyStrobe)
+        pitch.insertSublayer(halo(0xffffff, at: CGPoint(x: 68, y: 11), radius: (lightsOnly ? 30 : 20) / s, blink: strobeAnim), below: bellyStrobe)
         pitch.addSublayer(light(0x3dff9a, at: CGPoint(x: 86, y: 16), radius: lr * 0.7, blink: nil))
 
         let hover = CABasicAnimation(keyPath: "position.y")
@@ -168,6 +194,60 @@ enum Sprites {
         sweep.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         beam.add(Anim.randomPhase(sweep), forKey: "sweep")
         return beam
+    }
+
+    /// A soft radial halo around a light, sharing the light's blink so they flash together.
+    private static func halo(_ color: UInt32, at p: CGPoint, radius r: CGFloat, blink: CAAnimation) -> CALayer {
+        let l = CALayer()
+        l.bounds = CGRect(x: 0, y: 0, width: r * 2, height: r * 2)
+        l.position = p
+        l.contents = radialImage(color)
+        l.add(blink, forKey: "blink")
+        return l
+    }
+
+    private static func landingLight(at p: CGPoint, s: CGFloat) -> CALayer {
+        let group = CALayer()
+        let coneLength = 60 / s, coneWidth = 18 / s
+        let cone = CAGradientLayer()
+        cone.bounds = CGRect(x: 0, y: 0, width: coneLength, height: coneWidth)
+        cone.anchorPoint = CGPoint(x: 0, y: 0.5)
+        cone.position = p
+        cone.colors = [Palette.c(0xfff6e0, 0.45), Palette.c(0xfff6e0, 0.12), Palette.c(0xfff6e0, 0)]
+        cone.locations = [0, 0.4, 1]
+        cone.startPoint = CGPoint(x: 0, y: 0.5)
+        cone.endPoint = CGPoint(x: 1, y: 0.5)
+        let mask = CAShapeLayer()
+        mask.frame = cone.bounds
+        let m = CGMutablePath()
+        m.move(to: CGPoint(x: 0, y: coneWidth / 2 - 1.5 / s))
+        m.addLine(to: CGPoint(x: coneLength, y: 0))
+        m.addLine(to: CGPoint(x: coneLength, y: coneWidth))
+        m.addLine(to: CGPoint(x: 0, y: coneWidth / 2 + 1.5 / s))
+        m.closeSubpath()
+        mask.path = m
+        cone.mask = mask
+        cone.setAffineTransform(CGAffineTransform(rotationAngle: -0.25))   // angled down ahead
+        group.addSublayer(cone)
+        group.addSublayer(light(0xfff6e0, at: p, radius: max(1.4, 1.3 / s), blink: nil))
+        return group
+    }
+
+    nonisolated(unsafe) private static var radialCache: [UInt32: CGImage] = [:]
+    private static func radialImage(_ color: UInt32) -> CGImage? {
+        if let cached = radialCache[color] { return cached }
+        let size = 64
+        guard let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                           colors: [Palette.c(color, 0.75), Palette.c(color, 0.22), Palette.c(color, 0)] as CFArray,
+                           locations: [0, 0.35, 1])!
+        let c = CGPoint(x: 32, y: 32)
+        ctx.drawRadialGradient(g, startCenter: c, startRadius: 0, endCenter: c, endRadius: 32, options: [])
+        let image = ctx.makeImage()
+        radialCache[color] = image
+        return image
     }
 
     private static func light(_ color: UInt32, at p: CGPoint, radius r: CGFloat, blink: CAAnimation?) -> CALayer {
