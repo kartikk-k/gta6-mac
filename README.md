@@ -10,8 +10,7 @@ A menu bar app that themes your Mac after GTA VI's Vice City at night.
 - **Dock**: neon outline that tracks the Dock's exact size, palms behind each end.
 - **Sky**: mostly a small police-style helicopter with a searchlight; tiny far-off helicopters,
   distant jets, the odd lone gull, and now and then a helicopter landing on the Dock.
-- **Leonida Radio**: the official GTA VI album and Justice score tracklist from rockstargames.com/VI/music;
-  each item opens Rockstar's own "Play Full Track" link in your streaming service.
+- **Leonida Radio**: "Run Away With Me", with links to play it on Apple Music, Spotify or YouTube.
 - **Click the wallpaper** still reveals the desktop (the app re-implements macOS's gesture,
   which can't see through the theme's layers).
 

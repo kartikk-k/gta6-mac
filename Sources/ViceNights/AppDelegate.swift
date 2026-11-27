@@ -171,6 +171,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let s = Settings.shared
         let on = s.isOn(.themeOn)
 
+        // Missing permission goes right at the top, one click from the system dialog.
+        if !DockLocator.hasAccessibility {
+            let grant = item("Allow Accessibility Access…", #selector(askAccessibility))
+            grant.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Permission needed")
+            grant.toolTip = "Needed to fit the Dock outline exactly and to tell desktop icons apart from the wallpaper."
+            menu.addItem(grant)
+            menu.addItem(.separator())
+        }
+
+        // Until a song has been played once, offer it at the top too.
+        if !s.hasPlayedMusic {
+            let play = NSMenuItem(title: "Play “\(LeonidaRadio.songTitle)”", action: nil, keyEquivalent: "")
+            play.image = NSImage(systemSymbolName: "play.circle.fill", accessibilityDescription: "Play")
+            play.submenu = songMenu()
+            menu.addItem(play)
+            menu.addItem(.separator())
+        }
+
         let header = NSMenuItem(title: "Vice Nights", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
@@ -239,10 +257,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Dock
         let dockMenu = NSMenu()
         dockMenu.addItem(flagItem("Neon Outline", .dockNeon))
-        if !DockLocator.hasAccessibility {
-            dockMenu.addItem(.separator())
-            dockMenu.addItem(item("Track Dock Precisely (Accessibility)…", #selector(askAccessibility)))
-        }
         let dockItem = NSMenuItem(title: "Dock", action: nil, keyEquivalent: "")
         dockItem.submenu = dockMenu
         menu.addItem(dockItem)
@@ -268,28 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         // Music
-        let radio = NSMenu()
-        radio.addItem(item("Play GTA VI: The Album (Deluxe)", #selector(playAlbum)))
-        radio.addItem(item("Search Apple Music: “Run Away With Me”", #selector(searchRunAway)))
-        radio.addItem(.separator())
-        let albumMenu = NSMenu()
-        for (i, t) in LeonidaRadio.tracks.enumerated() {
-            let ti = item("\(i + 1). \(t.title) — \(t.artist)", #selector(playTrack(_:)))
-            ti.representedObject = t.link
-            albumMenu.addItem(ti)
-        }
-        let albumItem = NSMenuItem(title: "The Album: Tracks", action: nil, keyEquivalent: "")
-        albumItem.submenu = albumMenu
-        radio.addItem(albumItem)
-        let scoreMenu = NSMenu()
-        for t in LeonidaRadio.score {
-            let ti = item("\(t.title) — \(t.artist)", #selector(playTrack(_:)))
-            ti.representedObject = t.link
-            scoreMenu.addItem(ti)
-        }
-        let scoreItem = NSMenuItem(title: "Original Score by Justice", action: nil, keyEquivalent: "")
-        scoreItem.submenu = scoreMenu
-        radio.addItem(scoreItem)
+        let radio = songMenu()
         let radioItem = NSMenuItem(title: "Leonida Radio", action: nil, keyEquivalent: "")
         radioItem.submenu = radio
         menu.addItem(radioItem)
@@ -372,13 +365,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func nextWallpaper() { wallpaper.next() }
-    @objc private func playAlbum() { NSWorkspace.shared.open(LeonidaRadio.album) }
-    @objc private func searchRunAway() { LeonidaRadio.searchAppleMusic("Run Away With Me") }
-    @objc private func playTrack(_ sender: NSMenuItem) {
-        if let link = sender.representedObject as? String { LeonidaRadio.open(link) }
+    /// The song's title and a "Play on …" item per service.
+    private func songMenu() -> NSMenu {
+        let m = NSMenu()
+        let song = NSMenuItem(title: LeonidaRadio.songTitle, action: nil, keyEquivalent: "")
+        song.isEnabled = false
+        m.addItem(song)
+        for (service, url) in LeonidaRadio.links {
+            let i = item("Play on \(service)", #selector(playSong(_:)))
+            i.representedObject = url
+            m.addItem(i)
+        }
+        return m
+    }
+
+    @objc private func playSong(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        Settings.shared.hasPlayedMusic = true
+        NSWorkspace.shared.open(url)
     }
     @objc private func summon() { traffic.summon() }
-    @objc private func askAccessibility() { DockLocator.requestAccessibility() }
+    /// Shows the system permission dialog, and opens the Accessibility list in System Settings too:
+    /// macOS doesn't always show the dialog again once it has been dismissed.
+    @objc private func askAccessibility() {
+        DockLocator.requestAccessibility()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
     @objc private func openSite() { NSWorkspace.shared.open(URL(string: "https://www.rockstargames.com/VI")!) }
     @objc private func openCache() { NSWorkspace.shared.open(ImageStore.shared.directory) }
     @objc private func quit() { NSApp.terminate(nil) }

@@ -1,7 +1,10 @@
 #!/bin/bash
-# Builds build/ViceNights.app (menu bar only, ad-hoc signed).
+# Builds build/ViceNights.app (menu bar only), signed with your Apple Development identity if present.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+VERSION="${VERSION:-1.0}"
+# Build number: the commit count, so every release goes up.
+BUILD="${BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 swift build -c release
 APP="build/ViceNights.app"
 rm -rf "$APP"
@@ -17,8 +20,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Vice Nights</string>
   <key>CFBundleExecutable</key><string>ViceNights</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$BUILD</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>

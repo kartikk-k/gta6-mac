@@ -47,6 +47,11 @@ final class Settings {
         get { d.object(forKey: "rotateMinutes") as? Int ?? 0 }
         set { d.set(newValue, forKey: "rotateMinutes") }
     }
+    /// Set the first time a song link is opened; until then the menu offers it at the top.
+    var hasPlayedMusic: Bool {
+        get { d.bool(forKey: "hasPlayedMusic") }
+        set { d.set(newValue, forKey: "hasPlayedMusic") }
+    }
     var askedForAccessibility: Bool {
         get { d.bool(forKey: "askedForAccessibility") }
         set { d.set(newValue, forKey: "askedForAccessibility") }
