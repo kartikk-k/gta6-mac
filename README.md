@@ -2,6 +2,10 @@
 
 A menu bar app that themes your Mac after GTA VI's Vice City at night.
 
+![Vice Nights running on a Mac: neon wallpaper, party lights, helicopters, palms and the neon Dock outline](docs/demo.gif)
+
+[Download Vice Nights 1.0](https://github.com/kartikk-k/gta6-mac/releases/latest) (signed and notarized, macOS 14+).
+
 - **Wallpaper**: official night shots, nightlife shots and sunset key art from rockstargames.com/VI,
   downloaded on first use into `~/Library/Application Support/ViceNights/official` (nothing bundled),
   plus a generated "Neon Skyline" scene. Slow Ken Burns drift, crossfades, optional colour grade.
